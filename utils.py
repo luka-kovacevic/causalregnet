@@ -112,3 +112,7 @@ def generate_W(B, w_ranges=((-2.0, -0.5), (0.5, 2.0)), balanced=False):
         U = np.random.uniform(low=low, high=high, size=B.shape)
         W += B * (S == i) * U
     return W
+
+def is_dag(W):
+    G = ig.Graph.Weighted_Adjacency(W.tolist())
+    return G.is_dag()
