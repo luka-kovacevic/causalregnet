@@ -116,3 +116,20 @@ def generate_W(B, w_ranges=((-2.0, -0.5), (0.5, 2.0)), balanced=False):
 def is_dag(W):
     G = ig.Graph.Weighted_Adjacency(W.tolist())
     return G.is_dag()
+
+def generate_node_params(nnodes,
+                    min_mu=5, 
+                    max_mu=30, 
+                    min_theta=2,
+                    max_theta=15,
+                    min_alpha=2, 
+                    max_alpha=2,
+                    min_beta=0.1, 
+                    max_beta=0.1):
+
+    mu=np.random.uniform(min_mu, max_mu, nnodes)
+    theta=np.random.uniform(min_theta, max_theta, nnodes)
+    alpha=np.random.uniform(min_alpha, max_alpha, nnodes)
+    beta=np.random.uniform(min_beta, max_beta, nnodes)
+
+    return mu, theta, alpha, beta
