@@ -50,6 +50,8 @@ class PerturbSCM(object):
         self.beta = beta
         self.gamma = None
         self.b = None
+
+        self.var = self.mu * (1 + self.mu / self.theta)
         
     def check_len(self, vec):
         assert(len(vec) == self.nnodes)
@@ -87,14 +89,8 @@ class PerturbSCM(object):
         assert(self.gamma != None)
         assert(self.b != None)
 
-    def calibrate_sigmoid(self, type='linear'):
+    def calibrate_sigmoid(self):
         """Calibrates the sigmoid function that models regulatory effect between nodes.
-
-        Args:
-            W (np.ndarray): [d, d] weighted adj matrix of DAG
-            alpha (int): [d] list of desired maximum regulatory effect of parents
-            beta (int): [d] list of desired minimum regulatory effect of parents
-            type (str): mean-norm, z-norm, single-mean
 
         Returns:
             gamma (list): [d] list of calibrated 'gamma' parameters
@@ -105,20 +101,38 @@ class PerturbSCM(object):
         gamma = []
         b = []
 
-        if type == 'linear':
+        if self.agg_type == 'linear':
+            print('Calibrating linear aggregation with mean-norm...')
             
             for j in range(self.nnodes):
-                gamma_j = np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1)
+                gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
                 b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
 
                 gamma.append(gamma_j)
                 b.append(b_j)
+        
+        elif self.agg_type == 'linear-znorm':
+            print('Calibrating linear aggregation with z-norm...')
 
+            for j in range(self.nnodes):
+
+                w_sum_j = 0
+
+                for i in range(self.nnodes):
+                    w_sum_j = w_sum_j - self.mu[i] / self.var[i] * self.W[i,j]
+
+                gamma_j = - 1 / w_sum_j * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
+                b_j = - 1 / gamma_j * np.log(self.alpha[j] - 1)
+
+                gamma.append(gamma_j)
+                b.append(b_j)
         else:
             raise ValueError('Invalid aggregation type selected. Please choose from: linear')
 
         self.gamma = gamma
         self.b = b
+
+        print('Calibration complete.')
 
     def reg_sigmoid(self, x, j):
         """ Runs the regulatory effect (sigmoid) function given hyperparameters.
@@ -146,25 +160,35 @@ class PerturbSCM(object):
         self.check_calib()
 
         def _single_step(X, par_j, j):
-            if self.agg_type == 'linear':
+            if self.agg_type in ['linear', 'linear-znorm']:
                 r_sum = np.zeros(shape=n_samp)
                 
                 if len(par_j) > 0:
-                    for i in par_j:
-                        r_sum += self.W[i, j] * X[:,i] / self.mu[i]
+                    if self.agg_type == 'linear':
+                        for i in par_j:
+                            r_sum += self.W[i, j] * X[:,i] / self.mu[i]
+                    elif self.agg_type == 'linear-znorm':
+                        for i in par_j:
+                            r_sum += self.W[i, j] * (X[:,i] - self.mu[i]) / self.var[i]
 
-                reg_effect = self.reg_sigmoid(x=r_sum, j=j)
+                    reg_effect = self.reg_sigmoid(x=r_sum, j=j)
 
-                if intervention_type == 'stochastic' and intervention_val[j] >= 0:
-                    curr_mean = self.mu[j] * reg_effect * intervention_val[j]
+                    if intervention_type == 'stochastic' and intervention_val[j] >= 0:
+                        curr_mean = self.mu[j] * reg_effect * intervention_val[j]
+                    else:
+                        curr_mean = self.mu[j] * reg_effect 
+
+                # root nodes have no regulatory effect
                 else:
-                    curr_mean = self.mu[j] * reg_effect 
+                    curr_mean = np.repeat(self.mu[j], n_samp) 
+
                 curr_var = curr_mean * (1 + curr_mean / self.theta[j])
 
                 # converting to alternative negative binomial parameters
+
                 curr_p = curr_mean / curr_var
                 curr_n = curr_mean ** 2 / (curr_var - curr_mean)
-                for k in range(len(curr_var)):
+                for k in range(curr_var.shape[0]):
                     if curr_var[k] == 0:
                         curr_p[k] = 1
 
@@ -175,7 +199,7 @@ class PerturbSCM(object):
                 return expr
 
             else:
-                raise ValueError("Unknown aggregation type. Please select from: linear")
+                raise ValueError("Unknown aggregation type. Please select from: linear, linear-znorm")
             
         g = ig.Graph.Weighted_Adjacency(self.W.tolist())
         ordered_vertices = g.topological_sorting()
