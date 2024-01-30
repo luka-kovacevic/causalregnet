@@ -28,7 +28,7 @@ import igraph as ig
 
 import utils
 
-class PerturbSCM(object):
+class perturb_simulator(object):
     
     def __init__(self,
                  nnodes,
