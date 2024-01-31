@@ -26,7 +26,7 @@ import pandas as pd
 import networkx as nx
 import igraph as ig
 
-import utils
+from PerturbSCM import utils
 
 class perturb_simulator(object):
     
@@ -105,8 +105,24 @@ class perturb_simulator(object):
             print('Calibrating linear aggregation with mean-norm...')
             
             for j in range(self.nnodes):
-                gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
-                b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
+                w_sum = np.sum(self.W[:j])
+
+                if w_sum == 0:
+                    gamma_j = 0
+                    b_j = 0
+                else: 
+                    gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
+                    b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
+
+                # b_j = -1 * np.sum(self.W[:,j])
+                # if b_j == 0:
+                #     # case: root or master regulator node
+                #     # otherwise, cases where the weights sum to 0, under this setting the observational mean will be at regulatory effect 0
+                #     gamma_j = 1
+                # else: 
+                #     # c
+                #     gamma_j 
+
 
                 gamma.append(gamma_j)
                 b.append(b_j)
