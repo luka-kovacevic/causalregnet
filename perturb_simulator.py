@@ -102,7 +102,6 @@ class PerturbSCM(object):
         b = []
 
         if self.agg_type == 'linear':
-            print('Calibrating linear aggregation with mean-norm...')
             
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:j])
@@ -128,7 +127,6 @@ class PerturbSCM(object):
                 b.append(b_j)
         
         elif self.agg_type == 'linear-znorm':
-            print('Calibrating linear aggregation with z-norm...')
 
             for j in range(self.nnodes):
 
@@ -147,8 +145,6 @@ class PerturbSCM(object):
 
         self.gamma = gamma
         self.b = b
-
-        print('Calibration complete.')
 
     def reg_sigmoid(self, x, j):
         """ Runs the regulatory effect (sigmoid) function given hyperparameters.
