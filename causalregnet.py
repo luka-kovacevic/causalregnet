@@ -26,9 +26,9 @@ import pandas as pd
 import networkx as nx
 import igraph as ig
 
-from PerturbSCM import utils
+from causalregnet import utils
 
-class PerturbSCM(object):
+class CausalRegNet(object):
     
     def __init__(self,
                  nnodes,
@@ -104,7 +104,7 @@ class PerturbSCM(object):
         if self.agg_type == 'linear':
             
             for j in range(self.nnodes):
-                w_sum = np.sum(self.W[:j])
+                w_sum = np.sum(self.W[:,j])
 
                 if w_sum == 0:
                     gamma_j = 0
