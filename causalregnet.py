@@ -222,3 +222,78 @@ class CausalRegNet(object):
             X[:,j] = _single_step(X=X, par_j=parents_j, j=j)
 
         return X
+    
+
+    def simulate_meanwise(self, n_samp=1000, intervention_val=None, intervention_type=None):
+        """Simulate scRNA-seq dynamics either in observational case (when intervention_set=None) or interventional case (when intervention_set=[target_j]).
+
+        Args:
+            n_samp (int): number of samples to be generated
+            intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions, 
+                                    this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j. 
+                                    (negative values imply that this node is skipped)
+            intervention_type (str): perfect or stochastic
+
+        """
+
+        self.check_calib()
+
+        def _single_step(X, mu_R, par_j, j):
+            if self.agg_type in ['linear', 'linear-znorm']:
+                r_sum = 0
+                
+                if len(par_j) > 0:
+                    if self.agg_type == 'linear':
+                        for i in par_j:
+                            r_sum += self.W[i, j] * mu_R[i] / self.mu[i]
+                    elif self.agg_type == 'linear-znorm':
+                        for i in par_j:
+                            r_sum += self.W[i, j] * (mu_R[i] - self.mu[i]) / self.var[i]
+
+                    reg_effect = self.reg_sigmoid(x=r_sum, j=j)
+
+                    curr_mean = self.mu[j] * reg_effect
+
+                # root nodes have no regulatory effect
+                else:
+                    curr_mean = self.mu[j]
+
+                if intervention_val != None and intervention_val[j] >= 0:
+                    if intervention_type == 'deterministic':
+                        curr_mean = intervention_val[j]
+                    else:
+                        curr_mean = curr_mean * intervention_val[j]
+
+                curr_var = curr_mean * (1 + curr_mean / self.theta[j])
+
+                # converting to alternative negative binomial parameters
+
+                ### TODO: we can't have intervention_val = 0 since then our p and n are infinity
+
+                if curr_mean == 0:
+                    temp_mean = 0.5
+                    curr_p = temp_mean / curr_var
+                    curr_n = temp_mean ** 2 / (curr_var - temp_mean)
+                else:
+                    curr_p = curr_mean / curr_var
+                    curr_n = curr_mean ** 2 / (curr_var - curr_mean)
+                
+                if intervention_type == 'deterministic' and intervention_val[j] >= 0:
+                    expr = np.repeat(intervention_val[j], n_samp)
+                else:
+                    expr = np.random.negative_binomial(n=curr_n, p=curr_p, size=n_samp)
+                return expr, curr_mean
+
+            else:
+                raise ValueError("Unknown aggregation type. Please select from: linear, linear-znorm")
+            
+        g = ig.Graph.Weighted_Adjacency(self.W.tolist())
+        ordered_vertices = g.topological_sorting()
+
+        X = np.zeros([n_samp, self.nnodes])
+        mu_R = self.mu.copy()
+        for j in ordered_vertices:
+            parents_j = g.neighbors(j, mode=ig.IN)
+            X[:,j], mu_R[j] = _single_step(X=X, mu_R=mu_R, par_j=parents_j, j=j)
+
+        return X
