@@ -172,6 +172,7 @@ class CausalRegNet(object):
         self.check_calib()
 
         def _single_step(X, par_j, j):
+
             if self.agg_type in ['linear', 'linear-znorm']:
                 r_sum = np.zeros(shape=n_samp)
                 
@@ -187,6 +188,8 @@ class CausalRegNet(object):
 
                     if intervention_type == 'stochastic' and intervention_val[j] >= 0:
                         curr_mean = self.mu[j] * reg_effect * intervention_val[j]
+                    elif intervention_type == 'deterministic' and intervention_val[j] >= 0:
+                        curr_mean = np.repeat(intervention_val[j], n_samp)
                     else:
                         curr_mean = self.mu[j] * reg_effect 
 
@@ -208,6 +211,7 @@ class CausalRegNet(object):
                     expr = np.repeat(intervention_val[j], n_samp)
                 else:
                     expr = np.random.negative_binomial(n=curr_n, p=curr_p, size=n_samp)
+
                 return expr
 
             else:
