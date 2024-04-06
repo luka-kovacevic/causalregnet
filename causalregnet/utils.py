@@ -50,7 +50,7 @@ def generate_dag(d, m, graph_type='ER'):
 
     def _random_permutation(M):
         # np.random.permutation permutes first axis only
-        P = np.random.permutation(np.eye(M.shape[0]))
+        P = np.random.permutation(np.eye(M.shape[0])) 
         return P.T @ M @ P
 
     def _random_acyclic_orientation(B_und):
@@ -83,34 +83,66 @@ def generate_dag(d, m, graph_type='ER'):
     assert ig.Graph.Adjacency(B_perm.tolist()).is_dag()
     return B_perm
 
-def generate_W(B, w_ranges=((-2.0, -0.5), (0.5, 2.0)), balanced=False):
+def assign_parent_pairs(B):
+    """Given an adjacency matrix B, this method pairs parents of nodes up for balanced specification of W.
+
+        Args:
+            B (np.ndarray): [d, d] adjacency matrix
+
+        Returns:
+            P (np.ndarray): [d, d] pair indexed matrix
+    """
+    P = np.zeros(B.shape)
+    count = 1
+
+    for j in range(B.shape[1]):
+        parent_list = np.where(B[:,j] == 1)[0].tolist()
+
+        parent1 = None
+
+        while len(parent_list) > 0:
+            idx = random.randrange(0, len(parent_list))
+            new_parent = parent_list.pop(idx)
+            if parent1 is None:
+                if len(parent_list) > 0:
+                    parent1 = new_parent
+                else:
+                    break
+            else:
+                P[parent1, j] = count 
+                P[new_parent, j] = count
+                count += 1
+    return P
+
+def generate_W(B, w_ranges=((-2.0, -0.5), (0.5, 2.0)), balanced=False, balancing_noise_std=0.1):
     """Simulate weight edges given a binary DAG adjacency matrix.
 
     Args:
         B (np.ndarray): [d, d] binary adj matrix of DAG
         w_ranges (tuple): disjoint weight ranges
+        balanced (boolean): determines whether parents weights are balanced to ensure consistency under linear aggregation
+        balancing_norm_scale (float): standard deviation used to generate noise in paired weights (only works when `balanced = True`)
 
     Returns:
         W (np.ndarray): [d, d] weighted adj matrix of DAG
     """
-    assert(is_dag(B))
-
     W = np.zeros(B.shape)
+    S = np.random.randint(len(w_ranges), size=B.shape)
 
-    if balanced:
-        s = np.random.randint(len(w_ranges), size=np.sum(B > 0))  # which range
-        S = np.zeros(B.shape)
-
-        entry = 0
-        for i,j in zip(*B.nonzero()):
-            S[i,j] = s[entry]
-            entry += 1
-    else:
-        S = np.random.randint(len(w_ranges), size=B.shape)
-
+    # iterate through each group determined by S (i.e. which w_range each entry belongs to)
     for i, (low, high) in enumerate(w_ranges):
         U = np.random.uniform(low=low, high=high, size=B.shape)
         W += B * (S == i) * U
+
+
+    if balanced:
+        P = assign_parent_pairs(B)
+
+        for k in set(P.flatten()):
+            if k != 0: # 0 indicates unpaired entries
+                matching_idx = np.where(P == k)
+                W[matching_idx[0][1], matching_idx[1][1]] = -1 * W[matching_idx[0][0], matching_idx[1][0]] + np.random.normal(loc=0, scale=balancing_noise_std, size=1)
+
     return W
 
 def is_dag(W):

@@ -28,7 +28,7 @@ import igraph as ig
 
 from causalregnet import utils
 
-class CausalRegNet(object):
+class Simulator(object):
     
     def __init__(self,
                  nnodes,
@@ -37,7 +37,8 @@ class CausalRegNet(object):
                  W,
                  alpha,
                  beta,
-                 agg_type='linear'):
+                 agg_type='linear',
+                 reg_constant=None):
 
         assert(type(nnodes) == int)
 
@@ -48,6 +49,8 @@ class CausalRegNet(object):
         self.W = W
         self.alpha = alpha
         self.beta = beta
+        self.reg_constant = reg_constant
+
         self.gamma = None
         self.b = None
 
@@ -101,7 +104,7 @@ class CausalRegNet(object):
         gamma = []
         b = []
 
-        if self.agg_type == 'linear':
+        if self.agg_type == 'linear' and self.reg_constant == None:
             
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:,j])
@@ -110,8 +113,10 @@ class CausalRegNet(object):
                     gamma_j = 0
                     b_j = 0
                 else: 
-                    gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
-                    b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
+                    # gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
+                    # b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
+                    b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1))
+                    gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
 
                 # b_j = -1 * np.sum(self.W[:,j])
                 # if b_j == 0:
@@ -140,18 +145,64 @@ class CausalRegNet(object):
 
                 gamma.append(gamma_j)
                 b.append(b_j)
+        elif self.agg_type == 'linear' and self.reg_constant != None:
+            
+            for j in range(self.nnodes):
+                w_sum = np.sum(self.W[:,j])
+
+                if w_sum == 0:
+                    gamma_j = 0
+                    b_j = 0
+
+                else:
+                    # b_j = self.reg_constant[j] * (np.log(self.alpha[j] - 1) / (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1)) - 1) - w_sum
+                    # gamma_j = -1 * np.log(self.alpha[j] / self.beta[j] - 1) / (b_j + self.reg_constant[j])
+
+                    # frac = np.log(self.alpha[j] - 1) / np.log(self.alpha[j] / self.beta[j] - 1)
+                    # b_j = (frac * self.reg_constant[j] - (w_sum + self.reg_constant[j])) / (frac - 1)
+                    
+                    # gamma_j = -1 / (self.reg_constant[j] - b_j) * np.log(self.alpha[j] / self.beta[j] - 1)
+
+                    b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1)) 
+                    
+                    b_j = b_j - self.reg_constant[j]
+                    gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
+
+
+                b.append(b_j)
+                gamma.append(gamma_j)
+
         else:
             raise ValueError('Invalid aggregation type selected. Please choose from: linear')
 
         self.gamma = gamma
         self.b = b
 
+    def calibrate_reg_constant(self, q=0.75):
+        """ Calibrates the regulatory constant that ensures the parents of each gene don't have overly great effects and are fully expressed
+        """
+
+        reg_constant = None
+
+        new_reg_constant = []
+
+        x_temp = self.simulate()
+        x_max = x_temp.max(axis=0)
+
+        w_sum = 0
+        
+        for j in range(self.nnodes):
+            w_sum_j = np.quantile(self.W[:,j] * x_max / self.mu, q=q)
+            new_reg_constant.append(w_sum_j)
+
+        self.reg_constant = new_reg_constant
+
     def reg_sigmoid(self, x, j):
         """ Runs the regulatory effect (sigmoid) function given hyperparameters.
 
         Args:
-            x (list) : 
-            j (int) :
+            x (list) : data to be passed through sigmoid function
+            j (int) : node for which the sigmoid function is being run
         """
         self.check_params()
 
@@ -179,7 +230,9 @@ class CausalRegNet(object):
                 if len(par_j) > 0:
                     if self.agg_type == 'linear':
                         for i in par_j:
-                            r_sum += self.W[i, j] * X[:,i] / self.mu[i]
+                            r_sum += self.W[i, j] * (X[:,i] / self.mu[i])
+                        if self.reg_constant != None:
+                            r_sum += self.reg_constant[j]
                     elif self.agg_type == 'linear-znorm':
                         for i in par_j:
                             r_sum += self.W[i, j] * (X[:,i] - self.mu[i]) / self.var[i]
@@ -195,17 +248,14 @@ class CausalRegNet(object):
 
                 # root nodes have no regulatory effect
                 else:
-                    curr_mean = np.repeat(self.mu[j], n_samp) 
+                    curr_mean = np.repeat(self.mu[j], n_samp)
 
                 curr_var = curr_mean * (1 + curr_mean / self.theta[j])
 
                 # converting to alternative negative binomial parameters
 
-                curr_p = curr_mean / curr_var
-                curr_n = curr_mean ** 2 / (curr_var - curr_mean)
-                for k in range(curr_var.shape[0]):
-                    if curr_var[k] == 0:
-                        curr_p[k] = 1
+                curr_p = np.where(curr_var == 0, 1, curr_mean / curr_var)
+                curr_n = np.where(curr_mean == curr_var, np.inf, curr_mean ** 2 / (curr_var - curr_mean))
 
                 if intervention_type == 'deterministic' and intervention_val[j] >= 0:
                     expr = np.repeat(intervention_val[j], n_samp)
