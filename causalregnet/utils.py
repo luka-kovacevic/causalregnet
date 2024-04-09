@@ -150,8 +150,8 @@ def is_dag(W):
     return G.is_dag()
 
 def generate_node_params(nnodes,
-                    min_mu=5, 
-                    max_mu=30, 
+                    min_mu=1, 
+                    max_mu=5, 
                     min_theta=2,
                     max_theta=15,
                     min_alpha=2, 
@@ -165,3 +165,25 @@ def generate_node_params(nnodes,
     beta=np.random.uniform(min_beta, max_beta, nnodes)
 
     return mu, theta, alpha, beta
+
+def varsortability(X, W, tol=1e-9):
+    """ Takes n x d data and a d x d adjaceny matrix,
+    where the i,j-th entry corresponds to the edge weight for i->j,
+    and returns a value indicating how well the variance order
+    reflects the causal order. """
+    E = W != 0
+    Ek = E.copy()
+    var = np.var(X, axis=0, keepdims=True)
+
+    n_paths = 0
+    n_correctly_ordered_paths = 0
+
+    for _ in range(E.shape[0] - 1):
+        n_paths += Ek.sum()
+        n_correctly_ordered_paths += (Ek * var / var.T > 1 + tol).sum()
+        n_correctly_ordered_paths += 1/2*(
+            (Ek * var / var.T <= 1 + tol) *
+            (Ek * var / var.T >  1 - tol)).sum()
+        Ek = Ek.dot(E)
+
+    return n_correctly_ordered_paths / n_paths

@@ -104,7 +104,7 @@ class Simulator(object):
         gamma = []
         b = []
 
-        if self.agg_type == 'linear' and self.reg_constant == None:
+        if self.agg_type == 'linear' and self.reg_constant is None:
             
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:,j])
@@ -113,20 +113,8 @@ class Simulator(object):
                     gamma_j = 0
                     b_j = 0
                 else: 
-                    # gamma_j = 1 / np.sum(self.W[:,j]) * (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1))
-                    # b_j = - 1 / gamma_j * (np.log(self.alpha[j] - 1) + gamma_j * np.sum(self.W[:,j]))
                     b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1))
                     gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
-
-                # b_j = -1 * np.sum(self.W[:,j])
-                # if b_j == 0:
-                #     # case: root or master regulator node
-                #     # otherwise, cases where the weights sum to 0, under this setting the observational mean will be at regulatory effect 0
-                #     gamma_j = 1
-                # else: 
-                #     # c
-                #     gamma_j 
-
 
                 gamma.append(gamma_j)
                 b.append(b_j)
@@ -145,7 +133,7 @@ class Simulator(object):
 
                 gamma.append(gamma_j)
                 b.append(b_j)
-        elif self.agg_type == 'linear' and self.reg_constant != None:
+        elif self.agg_type == 'linear':
             
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:,j])
@@ -155,16 +143,7 @@ class Simulator(object):
                     b_j = 0
 
                 else:
-                    # b_j = self.reg_constant[j] * (np.log(self.alpha[j] - 1) / (np.log(self.alpha[j] / self.beta[j] - 1) - np.log(self.alpha[j] - 1)) - 1) - w_sum
-                    # gamma_j = -1 * np.log(self.alpha[j] / self.beta[j] - 1) / (b_j + self.reg_constant[j])
-
-                    # frac = np.log(self.alpha[j] - 1) / np.log(self.alpha[j] / self.beta[j] - 1)
-                    # b_j = (frac * self.reg_constant[j] - (w_sum + self.reg_constant[j])) / (frac - 1)
-                    
-                    # gamma_j = -1 / (self.reg_constant[j] - b_j) * np.log(self.alpha[j] / self.beta[j] - 1)
-
                     b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1)) 
-                    
                     b_j = b_j - self.reg_constant[j]
                     gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
 
@@ -205,8 +184,12 @@ class Simulator(object):
             j (int) : node for which the sigmoid function is being run
         """
         self.check_params()
+        try:
+            val = np.array(self.alpha[j] * 1 / (1 + np.exp(- self.gamma[j] * (1 * x + self.b[j]))), dtype=np.double)
+        except ValueError:
+            pass
 
-        return(self.alpha[j] * 1 / (1 + np.exp(- self.gamma[j] * (1 * x + self.b[j]))))
+        return(val)
     
     def simulate(self, n_samp=1000, intervention_val=None, intervention_type=None):
         """Simulate scRNA-seq dynamics either in observational case (when intervention_set=None) or interventional case (when intervention_set=[target_j]).
@@ -215,7 +198,7 @@ class Simulator(object):
             n_samp (int): number of samples to be generated
             intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions, 
                                     this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j. 
-                                    (negative values imply that this node is skipped)
+                                    (negative values imply that this node is skipped / not intervened upon)
             intervention_type (str): perfect or stochastic
 
         """
@@ -225,13 +208,13 @@ class Simulator(object):
         def _single_step(X, par_j, j):
 
             if self.agg_type in ['linear', 'linear-znorm']:
-                r_sum = np.zeros(shape=n_samp)
+                r_sum = np.zeros(shape=n_samp, dtype=np.double)
                 
                 if len(par_j) > 0:
                     if self.agg_type == 'linear':
                         for i in par_j:
                             r_sum += self.W[i, j] * (X[:,i] / self.mu[i])
-                        if self.reg_constant != None:
+                        if self.reg_constant is not None:
                             r_sum += self.reg_constant[j]
                     elif self.agg_type == 'linear-znorm':
                         for i in par_j:
@@ -254,8 +237,19 @@ class Simulator(object):
 
                 # converting to alternative negative binomial parameters
 
-                curr_p = np.where(curr_var == 0, 1, curr_mean / curr_var)
-                curr_n = np.where(curr_mean == curr_var, np.inf, curr_mean ** 2 / (curr_var - curr_mean))
+                curr_p = np.zeros([n_samp])
+                curr_n = np.zeros([n_samp])
+
+                for c in range(n_samp):
+                    if curr_var[c] == 0:
+                        curr_p[c] = 1
+                    else:
+                        curr_p[c] = curr_mean[c] / curr_var[c]
+
+                    if curr_mean[c] == curr_var[c]:
+                        curr_n[c] = np.inf 
+                    else:
+                        curr_n[c] = curr_mean[c] ** 2 / (curr_var[c] - curr_mean[c])
 
                 if intervention_type == 'deterministic' and intervention_val[j] >= 0:
                     expr = np.repeat(intervention_val[j], n_samp)
