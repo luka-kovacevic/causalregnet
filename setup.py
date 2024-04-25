@@ -29,7 +29,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='causalregnet',
-    version='1.0',
+    version='v1.0.0',
     python_requires=">=3.8",
     packages=find_packages(),
     package_data={
@@ -38,7 +38,7 @@ setup(
     author='Luka Kovačević',
     url="github.com/luka-kovacevic/structure_learning",
     author_email='luka.kovacevic@mrc-bsu.cam.ac.uk',
-    license="Apache-2.0",
+    license="MIT",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     install_requires=install_requires
