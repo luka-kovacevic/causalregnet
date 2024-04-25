@@ -37,9 +37,11 @@ def fit_nb(data):
     initial_guess = [mu, theta]
 
     # Minimize the negative log-likelihood
-    result = minimize(nb_loss, initial_guess, args=(data,),
-                        bounds=[(1e-9, None), (1e-9, None)],
-                        method="L-BFGS-B")  # n > 0
+    result = minimize(nb_loss, 
+                      initial_guess, 
+                      args=(data,),
+                      bounds=[(1e-9, None), (1e-9, None)],
+                      method="L-BFGS-B")  # n > 0
 
     # Store the fitted parameters
     mu, theta = result.x
@@ -58,9 +60,13 @@ def fit_zinb(data):
     # result = minimize(zinb_loss, initial_guess, args=(data,),
     #                   bounds=[(0, 1), (0.01, None), (None, None)])
     
-    initial_params = [1, 1, 0.5]  # pi, r, p
+    initial_guess = [1, 1, 0.5]  # pi, r, p
     bounds = [(0+1e-9, 1 - 1e-9), (1e-9, None), (1e-9, None)]  # Ensure parameters are within valid ranges
-    result = minimize(zinb_loss, initial_params, args=(data,), bounds=bounds)
+    result = minimize(zinb_loss, 
+                      initial_guess, 
+                      args=(data,), 
+                      bounds=bounds, 
+                      method="L-BFGS-B")
 
     pi, mu, theta = result.x
     return pi, mu, theta

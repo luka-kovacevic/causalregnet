@@ -319,7 +319,7 @@ class Simulator(object):
                 ### TODO: we can't have intervention_val = 0 since then our p and n are infinity
 
                 if curr_mean == 0:
-                    temp_mean = 0.5
+                    temp_mean = 1e-6
                     curr_p = temp_mean / curr_var
                     curr_n = temp_mean ** 2 / (curr_var - temp_mean)
                 else:
