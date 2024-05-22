@@ -7,7 +7,7 @@ This is a library for simulating realistic single-cell RNA sequencing data based
 1. Download the package from GitHub
 
 ```
-git clone https://github.com/luka-kovacevic/causalregnet
+git clone https://github.com/XX/causalregnet
 ```
 
 2. Navigate to the package 

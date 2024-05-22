@@ -35,9 +35,9 @@ setup(
     package_data={
         "": ["*.txt"]
     },
-    author='Luka Kovačević',
-    url="github.com/luka-kovacevic/structure_learning",
-    author_email='luka.kovacevic@mrc-bsu.cam.ac.uk',
+    author='XX',
+    url="github.com/XX/structure_learning",
+    author_email='XX',
     license="MIT",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",

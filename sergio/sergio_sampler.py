@@ -3,7 +3,7 @@ import functools
 import numpy as onp
 import copy
 from collections import defaultdict
-from sergio.sergio_mod import Sergio as SergioSimulator
+from sergio.interv_sergio import Sergio as SergioSimulator
 
 
 def grn_sergio(
