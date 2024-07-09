@@ -2,7 +2,7 @@
 
 This is a library for simulating realistic single-cell RNA sequencing data based on a given causal structure, scalable to the dimension of genome-wide gene perturbation screens.
 
-Implementation of method developed in [Kovačević et al.](https://arxiv.org/abs/2407.06015).
+Implementation of method developed in [*"Simulation-based Benchmarking of Causal Structure Learning in Gene Perturbation Experiments"*](https://arxiv.org/abs/2407.06015).
 
 ## Installation guide 
 
