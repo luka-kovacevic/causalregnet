@@ -10,3 +10,4 @@ repos:
     rev: v0.8.1  # Use the latest stable version of Ruff
     hooks:
       - id: ruff
+        args: ["--extend-select", "ANN,D"]
