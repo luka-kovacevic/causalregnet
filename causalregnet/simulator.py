@@ -22,14 +22,12 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 import numpy as np
-import pandas as pd 
-import networkx as nx
 import igraph as ig
 
 from causalregnet import utils
 
-class Simulator(object):
-    
+class CausalRegNet(object):
+
     def __init__(self,
                  nnodes,
                  mu,
@@ -40,7 +38,7 @@ class Simulator(object):
                  agg_type='linear',
                  reg_constant=None):
 
-        assert(type(nnodes) == int)
+        assert(isinstance(nnodes, int))
 
         self.nnodes = nnodes
         self.agg_type = agg_type
@@ -55,42 +53,42 @@ class Simulator(object):
         self.b = None
 
         self.var = self.mu * (1 + self.mu / self.theta)
-        
-    def check_len(self, vec):
+
+    def _check_len(self, vec):
         assert(len(vec) == self.nnodes)
-    
-    def check_W(self):
-        """ Checks that weighted adjacency matrix is (1) acyclic and (2) square. 
+
+    def _check_W(self):
+        """ Checks that weighted adjacency matrix is (1) acyclic and (2) square.
         """
         assert(self.W.shape[0] == self.W.shape[1])
         assert(utils.is_dag(self.W))
 
-    def check_alpha(self):
-        self.check_len(self.alpha)
+    def _check_alpha(self):
+        self._check_len(self.alpha)
         assert(all([a > 1 for a in self.alpha]))
 
-    def check_beta(self):
-        self.check_len(self.beta)
+    def _check_beta(self):
+        self._check_len(self.beta)
         assert(all([0 < b < 1 for b in self.beta]))
 
-    def check_mu(self):
-        self.check_len(self.mu)
+    def _check_mu(self):
+        self._check_len(self.mu)
         assert(all([isinstance(float(m), float) for m in self.mu]))
 
-    def check_theta(self):
-        self.check_len(self.theta)
+    def _check_theta(self):
+        self._check_len(self.theta)
         assert(all([isinstance(float(t), float) for t in self.theta]))
 
-    def check_params(self):
-        self.check_W()
-        self.check_alpha()
-        self.check_beta()
-        self.check_mu()
-        self.check_theta()
+    def _check_params(self):
+        self._check_W()
+        self._check_alpha()
+        self._check_beta()
+        self._check_mu()
+        self._check_theta()
 
-    def check_calib(self):
-        assert(self.gamma != None)
-        assert(self.b != None)
+    def _check_calib(self):
+        assert(self.gamma is not None)
+        assert(self.b is not None)
 
     def calibrate_sigmoid(self):
         """Calibrates the sigmoid function that models regulatory effect between nodes.
@@ -99,26 +97,26 @@ class Simulator(object):
             gamma (list): [d] list of calibrated 'gamma' parameters
             b (list): [d] list of calibrated 'b' parameters
         """
-        self.check_params()
-        
+        self._check_params()
+
         gamma = []
         b = []
 
         if self.agg_type == 'linear' and self.reg_constant is None:
-            
+
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:,j])
 
                 if w_sum == 0:
                     gamma_j = 0
                     b_j = 0
-                else: 
+                else:
                     b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1))
                     gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
 
                 gamma.append(gamma_j)
                 b.append(b_j)
-        
+
         elif self.agg_type == 'linear-znorm':
 
             for j in range(self.nnodes):
@@ -134,7 +132,7 @@ class Simulator(object):
                 gamma.append(gamma_j)
                 b.append(b_j)
         elif self.agg_type == 'linear':
-            
+
             for j in range(self.nnodes):
                 w_sum = np.sum(self.W[:,j])
 
@@ -143,7 +141,7 @@ class Simulator(object):
                     b_j = 0
 
                 else:
-                    b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1)) 
+                    b_j = np.log(self.alpha[j]/self.beta[j] - 1) * np.sum(self.W[:,j]) / (np.log(self.alpha[j] - 1) - np.log(self.alpha[j] / self.beta[j] - 1))
                     b_j = b_j - self.reg_constant[j]
                     gamma_j = - 1 / b_j * np.log(self.alpha[j] / self.beta[j] - 1)
 
@@ -161,15 +159,11 @@ class Simulator(object):
         """ Calibrates the regulatory constant that ensures the parents of each gene don't have overly great effects and are fully expressed
         """
 
-        reg_constant = None
-
-        new_reg_constant = []
+        new_reg_constant: list[float] = []
 
         x_temp = self.simulate()
         x_max = x_temp.max(axis=0)
 
-        w_sum = 0
-        
         for j in range(self.nnodes):
             w_sum_j = np.quantile(self.W[:,j] * x_max / self.mu, q=q)
             new_reg_constant.append(w_sum_j)
@@ -190,14 +184,14 @@ class Simulator(object):
             pass
 
         return(val)
-    
+
     def simulate(self, n_samp=1000, intervention_val=None, intervention_type=None):
         """Simulate scRNA-seq dynamics either in observational case (when intervention_set=None) or interventional case (when intervention_set=[target_j]).
 
         Args:
             n_samp (int): number of samples to be generated
-            intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions, 
-                                    this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j. 
+            intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions,
+                                    this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j.
                                     (negative values imply that this node is skipped / not intervened upon)
             intervention_type (str): perfect or stochastic
 
@@ -209,7 +203,7 @@ class Simulator(object):
 
             if self.agg_type in ['linear', 'linear-znorm']:
                 r_sum = np.zeros(shape=n_samp, dtype=np.double)
-                
+
                 if len(par_j) > 0:
                     if self.agg_type == 'linear':
                         for i in par_j:
@@ -227,7 +221,7 @@ class Simulator(object):
                     elif intervention_type == 'deterministic' and intervention_val[j] >= 0:
                         curr_mean = np.repeat(intervention_val[j], n_samp)
                     else:
-                        curr_mean = self.mu[j] * reg_effect 
+                        curr_mean = self.mu[j] * reg_effect
 
                 # root nodes have no regulatory effect
                 else:
@@ -247,7 +241,7 @@ class Simulator(object):
                         curr_p[c] = curr_mean[c] / curr_var[c]
 
                     if curr_mean[c] == curr_var[c]:
-                        curr_n[c] = np.inf 
+                        curr_n[c] = np.inf
                     else:
                         curr_n[c] = curr_mean[c] ** 2 / (curr_var[c] - curr_mean[c])
 
@@ -260,7 +254,7 @@ class Simulator(object):
 
             else:
                 raise ValueError("Unknown aggregation type. Please select from: linear, linear-znorm")
-            
+
         g = ig.Graph.Weighted_Adjacency(self.W.tolist())
         ordered_vertices = g.topological_sorting()
 
@@ -270,15 +264,15 @@ class Simulator(object):
             X[:,j] = _single_step(X=X, par_j=parents_j, j=j)
 
         return X
-    
+
 
     def simulate_meanwise(self, n_samp=1000, intervention_val=None, intervention_type=None):
         """Simulate scRNA-seq dynamics either in observational case (when intervention_set=None) or interventional case (when intervention_set=[target_j]).
 
         Args:
             n_samp (int): number of samples to be generated
-            intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions, 
-                                    this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j. 
+            intervention_set (list): For perfect interventions, this is a list of 'a' values s.t. value j implies X_j = a_j. For stochastic interventions,
+                                    this is a list of values that determines the effect size of the intervention s.t. X_j = x_j * effect_j.
                                     (negative values imply that this node is skipped)
             intervention_type (str): perfect or stochastic
 
@@ -289,7 +283,7 @@ class Simulator(object):
         def _single_step(X, mu_R, par_j, j):
             if self.agg_type in ['linear', 'linear-znorm']:
                 r_sum = 0
-                
+
                 if len(par_j) > 0:
                     if self.agg_type == 'linear':
                         for i in par_j:
@@ -306,7 +300,7 @@ class Simulator(object):
                 else:
                     curr_mean = self.mu[j]
 
-                if intervention_val != None and intervention_val[j] >= 0:
+                if intervention_val is not None and intervention_val[j] >= 0:
                     if intervention_type == 'deterministic':
                         curr_mean = intervention_val[j]
                     else:
@@ -325,7 +319,7 @@ class Simulator(object):
                 else:
                     curr_p = curr_mean / curr_var
                     curr_n = curr_mean ** 2 / (curr_var - curr_mean)
-                
+
                 if intervention_type == 'deterministic' and intervention_val[j] >= 0:
                     expr = np.repeat(intervention_val[j], n_samp)
                 else:
@@ -334,7 +328,7 @@ class Simulator(object):
 
             else:
                 raise ValueError("Unknown aggregation type. Please select from: linear, linear-znorm")
-            
+
         g = ig.Graph.Weighted_Adjacency(self.W.tolist())
         ordered_vertices = g.topological_sorting()
 
