@@ -121,7 +121,6 @@ class CausalRegNet(object):
             x (list) : data to be passed through sigmoid function
             j (int) : node for which the sigmoid function is being run
         """
-        self.check_params()
         try:
             val = np.array(
                 self.alpha[j] * 1 / (1 + np.exp(-self.gamma[j] * (1 * x + self.b[j]))),
