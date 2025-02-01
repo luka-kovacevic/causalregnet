@@ -1,6 +1,9 @@
-numpy 
+numpy
 pandas
+seaborn
 scipy
 networkx
 igraph
 termcolor
+torch
+lightning

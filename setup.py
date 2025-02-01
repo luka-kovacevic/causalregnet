@@ -22,24 +22,23 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 from distutils.core import setup
+
 from setuptools import find_packages
 
-with open('requirements.txt') as f:
-    install_requires = f.read().strip().split('\n')
+with open("requirements.txt") as f:
+    install_requires = f.read().strip().split("\n")
 
 setup(
-    name='causalregnet',
-    version='v1.0.0',
+    name="causalregnet",
+    version="v1.0.0",
     python_requires=">=3.8",
     packages=find_packages(),
-    package_data={
-        "": ["*.txt"]
-    },
-    author='XX',
-    url="github.com/XX/structure_learning",
-    author_email='XX',
+    package_data={"": ["*.txt"]},
+    author="XX",
+    url="github.com/luka-kovacevic/causalregnet",
+    author_email="luka.kovacevic@mrc-bsu.cam.ac.uk",
     license="MIT",
-    long_description=open('README.md').read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    install_requires=install_requires
+    install_requires=install_requires,
 )
